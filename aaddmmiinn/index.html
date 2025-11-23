@@ -2,45 +2,204 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>GHOST_DASHBOARD</title>
-    <link rel="stylesheet" href="/main.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FEDERAL SURVEILLANCE DASHBOARD</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { background: #111; color: white; font-family: Arial; overflow: auto; }
-        .surveillance-feed {
-            border: 2px solid red;
-            background: #000;
-            position: relative;
-            margin-bottom: 20px;
+        /* --- CORE RESET & THEME --- */
+        :root {
+            --hud-red: #ff1a1a;
+            --hud-dark: #0f0f0f;
+            --hud-black: #000000;
+            --hud-glow: 0 0 10px rgba(255, 26, 26, 0.7);
+            --crt-line: rgba(255, 255, 255, 0.03);
         }
+
+        body { 
+            background-color: var(--hud-black);
+            background-image: linear-gradient(var(--crt-line) 1px, transparent 1px);
+            background-size: 100% 4px; /* Scanline effect */
+            color: white; 
+            font-family: 'Courier New', Courier, monospace; 
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- HEADER STYLING --- */
+        h1 {
+            text-align: center; 
+            color: var(--hud-red); 
+            border-bottom: 2px solid var(--hud-red);
+            text-shadow: var(--hud-glow);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            font-size: clamp(1.2rem, 4vw, 2rem); /* Responsive font size */
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        h1::before {
+            content: "[ CLASSIFIED FEED ]";
+            position: absolute;
+            top: -15px;
+            left: 0;
+            font-size: 10px;
+            color: #555;
+            letter-spacing: 1px;
+        }
+
+        /* --- RESPONSIVE GRID LAYOUT --- */
+        .admin-dashboard {
+            flex-grow: 1;
+            display: grid;
+            /* Auto-fit columns: Minimum 320px, otherwise stretch to fit space */
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
+            gap: 20px;
+            align-content: start;
+            padding: 10px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.9);
+        }
+
+        /* --- VIDEO CARD STYLING --- */
+        .surveillance-feed {
+            border: 1px solid var(--hud-red);
+            background: #050505;
+            position: relative;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
+            aspect-ratio: 16 / 9; /* Enforce widescreen aspect ratio */
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .surveillance-feed:hover {
+            box-shadow: 0 0 25px rgba(255, 26, 26, 0.6);
+            border-color: #fff;
+            transform: scale(1.02);
+            z-index: 100;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Fills the box nicely */
+            display: block;
+            opacity: 0.9;
+            filter: contrast(1.2) sepia(0.2); /* Gritty surveillance look */
+        }
+
+        /* --- OVERLAYS --- */
         .feed-label {
             position: absolute;
-            top: 5px;
-            left: 5px;
-            background: red;
-            color: white;
-            padding: 2px 5px;
-            font-size: 12px;
-            font-weight: bold;
+            top: 0;
+            left: 0;
+            background: var(--hud-red);
+            color: black;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 900;
+            letter-spacing: 1px;
             z-index: 10;
+            clip-path: polygon(0 0, 100% 0, 90% 100%, 0% 100%); /* Tech angle */
         }
+
         .rec-indicator {
             position: absolute;
-            top: 5px;
-            right: 5px;
-            color: red;
+            top: 10px;
+            right: 10px;
+            color: var(--hud-red);
             font-weight: bold;
+            font-size: 12px;
+            text-shadow: 0 0 5px red;
             animation: blink 1s infinite;
-            background: rgba(0,0,0,0.7);
-            padding: 2px 5px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 2px 6px;
+            border: 1px solid var(--hud-red);
+            border-radius: 2px;
             z-index: 10;
         }
-        @keyframes blink { 50% { opacity: 0; } }
+
+        /* --- CONTROL PANEL (Fixed Bottom) --- */
+        .control-panel {
+            margin-top: 20px;
+            padding: 15px;
+            border-top: 1px solid #333;
+            background: #111;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-panel div {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px var(--hud-red);
+        }
+
+        .btn-bust {
+            background: transparent;
+            color: var(--hud-red);
+            border: 2px solid var(--hud-red);
+            padding: 15px 30px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+            flex: 1 1 200px; /* Responsive buttons */
+            max-width: 400px;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
+        }
+
+        .btn-bust:hover {
+            background: var(--hud-red);
+            color: black;
+            box-shadow: 0 0 20px var(--hud-red);
+        }
+
+        .btn-bust:active {
+            transform: translateY(2px);
+        }
+
+        /* Specific style for Save button overrides */
+        .btn-bust[style*="blue"] {
+            border-color: cyan !important;
+            color: cyan !important;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2) !important;
+        }
+        
+        .btn-bust[style*="blue"]:hover {
+            background: cyan !important;
+            color: black !important;
+            box-shadow: 0 0 20px cyan !important;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes blink { 50% { opacity: 0.3; } }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; border: 1px solid #555; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--hud-red); }
     </style>
 </head>
 <body>
 
-    <h1 style="text-align:center; color:red; border-bottom:1px solid red;">OPERATION: GHOST - RECORDING ACTIVE</h1>
+    <h1 style="text-align:center; color:red; border-bottom:1px solid red;">OPERATION: HONEYPOT - RECORDING ACTIVE</h1>
 
     <div class="admin-dashboard" id="suspect-grid">
         </div>
@@ -121,7 +280,7 @@
                 a.style.display = 'none';
                 a.href = url;
                 const timestamp = new Date().toISOString().replace(/:/g, "-");
-                a.download = `GHOST_${id}_${timestamp}.webm`;
+                a.download = `EVIDENCE_${id}_${timestamp}.webm`;
                 document.body.appendChild(a);
                 a.click();
                 
